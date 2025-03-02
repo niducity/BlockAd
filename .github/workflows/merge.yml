@@ -31,7 +31,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add output.txt
+          git add domains.txt
           # 如果文件没有变更，则不提交
           if ! git diff --cached --quiet; then
             git commit -m "Update merged domains file"
