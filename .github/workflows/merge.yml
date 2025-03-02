@@ -28,7 +28,7 @@ jobs:
 
       - name: Process domains_raw.txt (remove first three lines)
         run: |
-          tail -n +4 domains_raw.txt > domains_processed.txt
+          tail -n +5 domains_raw.txt > domains_processed.txt
 
       - name: Merge files and remove duplicate entries
         run: |
