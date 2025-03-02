@@ -1,0 +1,41 @@
+name: Merge and Remove Duplicates
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  merge-files:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Download files
+        run: |
+          curl -sSL "https://raw.githubusercontent.com/Cats-Team/AdRules/main/mosdns_adrules.txt" -o mosdns_adrules.txt
+          curl -sSL "https://anti-ad.net/domains.txt" -o domains.txt
+
+      - name: Process mosdns_adrules.txt (remove "domain:" prefix)
+        run: |
+          sed 's/^domain://g' mosdns_adrules.txt > mosdns_adrules_processed.txt
+
+      - name: Merge and remove duplicate entries
+        run: |
+          cat mosdns_adrules_processed.txt domains.txt | sed '/^\s*$/d' | sort -u > output.txt
+          echo "Merged file generated with $(wc -l < output.txt) unique lines."
+
+      - name: Commit merged file
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add output.txt
+          # 如果文件没有变更，则不提交
+          if ! git diff --cached --quiet; then
+            git commit -m "Update merged domains file"
+            git push
+          else
+            echo "No changes to commit."
+          fi
