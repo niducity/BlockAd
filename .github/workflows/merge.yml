@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+  schedule:
+    - cron: "0 0 * * *"  # 每天 0 点 (UTC) 触发，可根据需要调整
   workflow_dispatch:
 
 jobs:
@@ -12,27 +14,34 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download files
         run: |
           curl -sSL "https://raw.githubusercontent.com/Cats-Team/AdRules/main/mosdns_adrules.txt" -o mosdns_adrules.txt
-          curl -sSL "https://anti-ad.net/domains.txt" -o domains.txt
+          curl -sSL "https://anti-ad.net/domains.txt" -o domains_raw.txt
 
       - name: Process mosdns_adrules.txt (remove "domain:" prefix)
         run: |
           sed 's/^domain://g' mosdns_adrules.txt > mosdns_adrules_processed.txt
 
-      - name: Merge and remove duplicate entries
+      - name: Process domains_raw.txt (remove first three lines)
         run: |
-          cat mosdns_adrules_processed.txt domains.txt | sed '/^\s*$/d' | sort -u > output.txt
-          echo "Merged file generated with $(wc -l < output.txt) unique lines."
+          tail -n +4 domains_raw.txt > domains_processed.txt
+
+      - name: Merge files and remove duplicate entries
+        run: |
+          # 合并处理后的两个文件，删除空行，并按行排序去重生成最终文件 domains.txt
+          cat mosdns_adrules_processed.txt domains_processed.txt | sed '/^\s*$/d' | sort -u > domains.txt
+          echo "Merged file generated with $(wc -l < domains.txt) unique lines."
 
       - name: Commit merged file
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add domains.txt
-          # 如果文件没有变更，则不提交
+          # 如果文件有改动则进行提交
           if ! git diff --cached --quiet; then
             git commit -m "Update merged domains file"
             git push
