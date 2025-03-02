@@ -1,11 +1,11 @@
-name: Merge and Remove Duplicates
+name: Merge and Remove Duplicates from Three Files
 
 on:
   push:
     branches:
       - main
   schedule:
-    - cron: "0 0 * * *"  # 每天 0 点 (UTC) 触发，可根据需要调整
+    - cron: "0 0 * * *"  # 每天 UTC 0 点触发，根据需要调整
   workflow_dispatch:
 
 jobs:
@@ -19,8 +19,12 @@ jobs:
 
       - name: Download files
         run: |
+          echo "Downloading mosdns_adrules.txt..."
           curl -sSL "https://raw.githubusercontent.com/Cats-Team/AdRules/main/mosdns_adrules.txt" -o mosdns_adrules.txt
+          echo "Downloading domains.txt (from anti-ad.net)..."
           curl -sSL "https://anti-ad.net/domains.txt" -o domains_raw.txt
+          echo "Downloading dns.txt (from GOODBYEADS)..."
+          curl -sSL "https://raw.githubusercontent.com/8680/GOODBYEADS/master/data/rules/dns.txt" -o dns_raw.txt
 
       - name: Process mosdns_adrules.txt (remove "domain:" prefix)
         run: |
@@ -30,18 +34,24 @@ jobs:
         run: |
           tail -n +5 domains_raw.txt > domains_processed.txt
 
+      - name: Process dns.txt (remove first seven lines, remove starting "||" and ending "^")
+        run: |
+          # tail -n +8: 删除前七行（从第8行开始输出）
+          tail -n +8 dns_raw.txt > dns_temp.txt
+          # 使用 sed 去除每行开头的 "||" 和末尾的 "^"
+          sed -E 's/^\|\|//; s/\^$//' dns_temp.txt > dns_processed.txt
+
       - name: Merge files and remove duplicate entries
         run: |
-          # 合并处理后的两个文件，删除空行，并按行排序去重生成最终文件 domains.txt
-          cat mosdns_adrules_processed.txt domains_processed.txt | sed '/^\s*$/d' | sort -u > domains.txt
-          echo "Merged file generated with $(wc -l < domains.txt) unique lines."
+          # 合并三个处理后的文件，删除空行，然后排序去重生成最终文件 domains.txt
+          cat mosdns_adrules_processed.txt domains_processed.txt dns_processed.txt | sed '/^\s*$/d' | sort -u > domains.txt
+          echo "Merged domains.txt generated with $(wc -l < domains.txt) unique lines."
 
       - name: Commit merged file
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add domains.txt
-          # 如果文件有改动则进行提交
           if ! git diff --cached --quiet; then
             git commit -m "Update merged domains file"
             git push
