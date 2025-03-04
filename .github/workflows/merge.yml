@@ -1,4 +1,4 @@
-name: Merge and Remove Duplicates from Three Files
+name: Merge and Remove Duplicates from Files
 
 on:
   push:
@@ -21,30 +21,37 @@ jobs:
         run: |
           echo "Downloading mosdns_adrules.txt..."
           curl -sSL "https://raw.githubusercontent.com/Cats-Team/AdRules/main/mosdns_adrules.txt" -o mosdns_adrules.txt
+          
           echo "Downloading domains.txt (from anti-ad.net)..."
           curl -sSL "https://anti-ad.net/domains.txt" -o domains_raw.txt
+          
           echo "Downloading dns.txt (from GOODBYEADS)..."
           curl -sSL "https://raw.githubusercontent.com/8680/GOODBYEADS/master/data/rules/dns.txt" -o dns_raw.txt
 
-      - name: Process mosdns_adrules.txt (remove "domain:" prefix)
-        run: |
-          sed 's/^domain://g' mosdns_adrules.txt > mosdns_adrules_processed.txt
+          echo "Downloading adblockdomain.txt (from 217heidai/adblockfilters)..."
+          curl -sSL "https://raw.githubusercontent.com/217heidai/adblockfilters/main/rules/adblockdomain.txt" -o adblockdomain_raw.txt
 
-      - name: Process domains_raw.txt (remove first three lines)
+      - name: Process mosdns_adrules.txt (remove "domain:" prefix and ignore lines starting with "!")
         run: |
-          tail -n +5 domains_raw.txt > domains_processed.txt
+          sed 's/^domain://g' mosdns_adrules.txt | grep -v '^!' > mosdns_adrules_processed.txt
 
-      - name: Process dns.txt (remove first seven lines, remove starting "||" and ending "^")
+      - name: Process domains_raw.txt (ignore lines starting with "!")
         run: |
-          # tail -n +8: 删除前七行（从第8行开始输出）
-          tail -n +8 dns_raw.txt > dns_temp.txt
-          # 使用 sed 去除每行开头的 "||" 和末尾的 "^"
-          sed -E 's/^\|\|//; s/\^$//' dns_temp.txt > dns_processed.txt
+          grep -v '^!' domains_raw.txt > domains_processed.txt
+
+      - name: Process dns.txt (remove starting "||", ending "^", and ignore lines starting with "!")
+        run: |
+          # 对每一行删除开头的 "||" 及末尾的 "^"
+          sed -E 's/^\|\|//; s/\^$//' dns_raw.txt | grep -v '^!' > dns_processed.txt
+
+      - name: Process adblockdomain.txt (ignore lines starting with "!")
+        run: |
+          grep -v '^!' adblockdomain_raw.txt > adblockdomain_processed.txt
 
       - name: Merge files and remove duplicate entries
         run: |
-          # 合并三个处理后的文件，删除空行，然后排序去重生成最终文件 domains.txt
-          cat mosdns_adrules_processed.txt domains_processed.txt dns_processed.txt | sed '/^\s*$/d' | sort -u > domains.txt
+          # 合并所有处理后的文件，删除空行，然后排序去重生成最终文件 domains.txt
+          cat mosdns_adrules_processed.txt domains_processed.txt dns_processed.txt adblockdomain_processed.txt | sed '/^\s*$/d' | sort -u > domains.txt
           echo "Merged domains.txt generated with $(wc -l < domains.txt) unique lines."
 
       - name: Commit merged file
