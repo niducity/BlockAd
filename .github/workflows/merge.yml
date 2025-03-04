@@ -22,6 +22,8 @@ jobs:
 
       - name: Download and process files
         run: |
+          set -e  # 遇到错误立即退出
+          
           declare -A sources=(
             ["mosdns_adrules.txt"]="https://raw.githubusercontent.com/Cats-Team/AdRules/main/mosdns_adrules.txt|s/^domain://g"
             ["domains.txt"]="https://anti-ad.net/domains.txt|"
@@ -35,17 +37,29 @@ jobs:
             
             echo "Processing $file from $url..."
             if ! curl -sSL "$url" -o "$file.raw"; then
-              echo "Error: Failed to download $file" >&2
+              echo "Error: Failed to download $file from $url" >&2
               exit 1
             fi
+            
+            echo "Raw file downloaded. Size: $(wc -l < "$file.raw") lines"
             
             # 如果 filters 为空，则只删除空行，否则应用指定的过滤规则
             # 只保留以字母或数字开头的行
             if [ -z "$filters" ]; then
-              sed '/^\s*$/d' "$file.raw" | grep '^[[:alnum:]]' > "$file.processed"
+              echo "Applying basic filter (remove empty lines)..."
+              if ! sed '/^\s*$/d' "$file.raw" | grep '^[[:alnum:]]' > "$file.processed"; then
+                echo "Error: Failed to process $file with basic filter" >&2
+                exit 1
+              fi
             else
-              sed "$filters" "$file.raw" | grep '^[[:alnum:]]' > "$file.processed"
+              echo "Applying custom filter: $filters..."
+              if ! sed "$filters" "$file.raw" | grep '^[[:alnum:]]' > "$file.processed"; then
+                echo "Error: Failed to process $file with filter '$filters'" >&2
+                exit 1
+              fi
             fi
+            
+            echo "Processed file. Size: $(wc -l < "$file.processed") lines"
           done
         working-directory: tmp
 
