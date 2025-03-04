@@ -31,22 +31,21 @@ jobs:
           echo "Downloading adblockdomain.txt (from 217heidai/adblockfilters)..."
           curl -sSL "https://raw.githubusercontent.com/217heidai/adblockfilters/main/rules/adblockdomain.txt" -o adblockdomain_raw.txt
 
-      - name: Process mosdns_adrules.txt (remove "domain:" prefix and ignore lines starting with "!")
+      - name: Process mosdns_adrules.txt (remove "domain:" prefix and ignore lines starting with "!" or "#")
         run: |
-          sed 's/^domain://g' mosdns_adrules.txt | grep -v '^!' > mosdns_adrules_processed.txt
+          sed 's/^domain://g' mosdns_adrules.txt | grep -v '^[!#]' > mosdns_adrules_processed.txt
 
-      - name: Process domains_raw.txt (ignore lines starting with "!")
+      - name: Process domains_raw.txt (ignore lines starting with "!" or "#")
         run: |
-          grep -v '^!' domains_raw.txt > domains_processed.txt
+          grep -v '^[!#]' domains_raw.txt > domains_processed.txt
 
-      - name: Process dns.txt (remove starting "||", ending "^", and ignore lines starting with "!")
+      - name: Process dns.txt (remove starting "||", ending "^", and ignore lines starting with "!" or "#")
         run: |
-          # 对每一行删除开头的 "||" 及末尾的 "^"
-          sed -E 's/^\|\|//; s/\^$//' dns_raw.txt | grep -v '^!' > dns_processed.txt
+          sed -E 's/^\|\|//; s/\^$//' dns_raw.txt | grep -v '^[!#]' > dns_processed.txt
 
-      - name: Process adblockdomain.txt (ignore lines starting with "!")
+      - name: Process adblockdomain.txt (ignore lines starting with "!" or "#")
         run: |
-          grep -v '^!' adblockdomain_raw.txt > adblockdomain_processed.txt
+          grep -v '^[!#]' adblockdomain_raw.txt > adblockdomain_processed.txt
 
       - name: Merge files and remove duplicate entries
         run: |
