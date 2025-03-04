@@ -23,6 +23,7 @@ jobs:
       - name: Download and process files
         run: |
           set -e  # 遇到错误立即退出
+          set -o pipefail  # 确保管道中的失败被捕获
           
           declare -A sources=(
             ["mosdns_adrules.txt"]="https://raw.githubusercontent.com/Cats-Team/AdRules/main/mosdns_adrules.txt|s/^domain://g"
@@ -53,19 +54,20 @@ jobs:
               echo "Applying custom filter: $filters..."
               if ! sed "$filters" "$file.raw" > "$file.temp"; then
                 echo "Error: sed failed with filter '$filters' for $file" >&2
-                head -n 10 "$file.raw" >&2  # 输出前10行便于调试
+                head -n 10 "$file.raw" >&2
                 exit 1
               fi
             fi
             
             echo "Applying grep filter for alphanumeric start..."
-            if ! grep '^[[:alnum:]]' "$file.temp" > "$file.processed"; then
-              echo "Error: grep failed for $file" >&2
-              head -n 10 "$file.temp" >&2  # 输出 sed 后的前10行
-              exit 1
+            # 使用 grep -E 并允许空输出
+            grep -E '^[[:alnum:]]' "$file.temp" > "$file.processed" || true
+            if [ ! -s "$file.processed" ]; then
+              echo "Warning: No lines matched alphanumeric filter for $file" >&2
+              head -n 10 "$file.temp" >&2
             fi
             
-            rm -f "$file.temp"  # 清理临时文件
+            rm -f "$file.temp"
             echo "Processed file. Size: $(wc -l < "$file.processed") lines"
           done
         working-directory: tmp
