@@ -5,7 +5,7 @@ on:
     branches:
       - main
   schedule:
-    - cron: "0 0 * * *"  # 每天 UTC 0 点触发，根据需要调整
+    - cron: "0 0 * * *"  # Runs daily at UTC 0:00
   workflow_dispatch:
 
 jobs:
@@ -13,54 +13,59 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4  # 更新到最新版本
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download files
-        run: |
-          echo "Downloading mosdns_adrules.txt..."
-          curl -sSL "https://raw.githubusercontent.com/Cats-Team/AdRules/main/mosdns_adrules.txt" -o mosdns_adrules.txt
-          
-          echo "Downloading domains.txt (from anti-ad.net)..."
-          curl -sSL "https://anti-ad.net/domains.txt" -o domains_raw.txt
-          
-          echo "Downloading dns.txt (from GOODBYEADS)..."
-          curl -sSL "https://raw.githubusercontent.com/8680/GOODBYEADS/master/data/rules/dns.txt" -o dns_raw.txt
+      - name: Set up environment
+        run: mkdir -p tmp && cd tmp
 
-          echo "Downloading adblockdomain.txt (from 217heidai/adblockfilters)..."
-          curl -sSL "https://raw.githubusercontent.com/217heidai/adblockfilters/main/rules/adblockdomain.txt" -o adblockdomain_raw.txt
-
-      - name: Process mosdns_adrules.txt (remove "domain:" prefix and ignore lines starting with "!" or "#")
+      - name: Download and process files
         run: |
-          sed 's/^domain://g' mosdns_adrules.txt | grep -v '^[!#]' > mosdns_adrules_processed.txt
+          declare -A sources=(
+            ["mosdns_adrules.txt"]="https://raw.githubusercontent.com/Cats-Team/AdRules/main/mosdns_adrules.txt|s/^domain://g"
+            ["domains.txt"]="https://anti-ad.net/domains.txt"
+            ["dns.txt"]="https://raw.githubusercontent.com/8680/GOODBYEADS/master/data/rules/dns.txt|s/^\|\|//;s/\^$//"
+            ["adblockdomain.txt"]="https://raw.githubusercontent.com/217heidai/adblockfilters/main/rules/adblockdomain.txt"
+          )
 
-      - name: Process domains_raw.txt (ignore lines starting with "!" or "#")
-        run: |
-          grep -v '^[!#]' domains_raw.txt > domains_processed.txt
+          for file in "${!sources[@]}"; do
+            url=$(echo "${sources[$file]}" | cut -d'|' -f1)
+            filters=$(echo "${sources[$file]}" | cut -d'|' -f2-)
+            
+            echo "Processing $file from $url..."
+            if ! curl -sSL "$url" -o "$file.raw"; then
+              echo "Error: Failed to download $file" >&2
+              exit 1
+            fi
+            
+            # 应用过滤：移除注释行 + 特定格式处理
+            sed "${filters:-/^\s*$/d}" "$file.raw" | grep -v '^[!#]' > "$file.processed"
+          done
+        working-directory: tmp
 
-      - name: Process dns.txt (remove starting "||", ending "^", and ignore lines starting with "!" or "#")
+      - name: Merge and deduplicate
         run: |
-          sed -E 's/^\|\|//; s/\^$//' dns_raw.txt | grep -v '^[!#]' > dns_processed.txt
+          cat *.processed | sort -u > ../domains.txt
+          echo "Merged domains.txt generated with $(wc -l < ../domains.txt) unique lines."
+        working-directory: tmp
 
-      - name: Process adblockdomain.txt (ignore lines starting with "!" or "#")
-        run: |
-          grep -v '^[!#]' adblockdomain_raw.txt > adblockdomain_processed.txt
+      - name: Clean up temporary files
+        if: always()  # 确保即使失败也执行清理
+        run: rm -rf tmp
 
-      - name: Merge files and remove duplicate entries
+      - name: Commit changes
         run: |
-          # 合并所有处理后的文件，删除空行，然后排序去重生成最终文件 domains.txt
-          cat mosdns_adrules_processed.txt domains_processed.txt dns_processed.txt adblockdomain_processed.txt | sed '/^\s*$/d' | sort -u > domains.txt
-          echo "Merged domains.txt generated with $(wc -l < domains.txt) unique lines."
-
-      - name: Commit merged file
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
           git add domains.txt
           if ! git diff --cached --quiet; then
-            git commit -m "Update merged domains file"
+            git commit -m "Update merged domains file - $(date -u +%Y-%m-%d)"
             git push
           else
             echo "No changes to commit."
           fi
+
+      - name: Notify on failure
+        if: failure()
+        run: echo "Workflow failed. Check logs for details." >&2
