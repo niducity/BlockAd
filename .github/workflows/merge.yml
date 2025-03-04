@@ -43,22 +43,29 @@ jobs:
             
             echo "Raw file downloaded. Size: $(wc -l < "$file.raw") lines"
             
-            # 如果 filters 为空，则只删除空行，否则应用指定的过滤规则
-            # 只保留以字母或数字开头的行
             if [ -z "$filters" ]; then
               echo "Applying basic filter (remove empty lines)..."
-              if ! sed '/^\s*$/d' "$file.raw" | grep '^[[:alnum:]]' > "$file.processed"; then
-                echo "Error: Failed to process $file with basic filter" >&2
+              if ! sed '/^\s*$/d' "$file.raw" > "$file.temp"; then
+                echo "Error: sed failed to remove empty lines for $file" >&2
                 exit 1
               fi
             else
               echo "Applying custom filter: $filters..."
-              if ! sed "$filters" "$file.raw" | grep '^[[:alnum:]]' > "$file.processed"; then
-                echo "Error: Failed to process $file with filter '$filters'" >&2
+              if ! sed "$filters" "$file.raw" > "$file.temp"; then
+                echo "Error: sed failed with filter '$filters' for $file" >&2
+                head -n 10 "$file.raw" >&2  # 输出前10行便于调试
                 exit 1
               fi
             fi
             
+            echo "Applying grep filter for alphanumeric start..."
+            if ! grep '^[[:alnum:]]' "$file.temp" > "$file.processed"; then
+              echo "Error: grep failed for $file" >&2
+              head -n 10 "$file.temp" >&2  # 输出 sed 后的前10行
+              exit 1
+            fi
+            
+            rm -f "$file.temp"  # 清理临时文件
             echo "Processed file. Size: $(wc -l < "$file.processed") lines"
           done
         working-directory: tmp
