@@ -26,7 +26,7 @@ jobs:
             ["mosdns_adrules.txt"]="https://raw.githubusercontent.com/Cats-Team/AdRules/main/mosdns_adrules.txt|s/^domain://g"
             ["domains.txt"]="https://anti-ad.net/domains.txt|"
             ["dns.txt"]="https://raw.githubusercontent.com/8680/GOODBYEADS/master/data/rules/dns.txt|s/^\|\|//;s/\^$//"
-            ["adblockdomain.txt"]="https://raw.githubusercontent.com/217heidai/adblockfilters/main/rules/adblockdomain.txt|"
+            ["adblockdomain.txt"]="https://raw.githubusercontent.com/217heidai/adblockfilters/main/rules/adblockdomainlite.txt|"
           )
 
           for file in "${!sources[@]}"; do
